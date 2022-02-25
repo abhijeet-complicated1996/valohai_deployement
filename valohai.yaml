@@ -1,0 +1,193 @@
+- step:
+    name: preprocess-data
+    image: tensorflow/tensorflow:2.6.1-gpu
+    command:
+    - pip install -r requirements.txt
+    - python ./preprocess.py {parameters}
+    inputs:
+    - name: myinput
+      default: datum://017f0b6d-387f-5128-b0ac-bac48588135d
+      optional: false
+- step:
+    name: test-model
+    image: tensorflow/tensorflow:2.6.0
+    command:
+    - pip install -r requirements.txt
+    - python ./test_losgistic.py {parameters}
+    inputs:
+    - name: dataset
+      default: datum://017f24d5-be37-668b-dc43-c8e58d8c123b
+      optional: false
+    - name: model
+      optional: true
+- step:
+    name: testLR-model
+    image: tensorflow/tensorflow:2.6.0
+    command:
+    - pip install -r requirements.txt
+    - python ./test_losgistic.py {parameters}
+    inputs:
+    - name: dataset
+      default: datum://017f24d5-be37-668b-dc43-c8e58d8c123b
+      optional: false
+    - name: model
+      default: datum://017f1ab8-e325-a00e-3bfa-a74e0427f822
+      optional: false
+- step:
+    name: trainDT-model
+    image: tensorflow/tensorflow:2.6.0
+    command:
+    - pip install -r requirements.txt
+    - python ./decision_tree.py {parameters}
+    inputs:
+    - name: dataset
+      default: datum://017f0b6d-387f-5128-b0ac-bac48588135d
+      optional: false
+- step:
+    name: trainLR-model
+    image: tensorflow/tensorflow:2.6.0
+    command:
+    - pip install -r requirements.txt
+    - python ./train_logistic.py {parameters}
+    inputs:
+    - name: dataset
+      optional: true
+- step:
+    name: trainMLP-model
+    image: tensorflow/tensorflow:2.6.0
+    command:
+    - pip install -r requirements.txt
+    - python ./mlp.py {parameters}
+    inputs:
+    - name: dataset
+      default: datum://017f1b1c-d53c-2a3a-6208-11d2cd096c17
+      optional: false
+- step:
+    name: trainadaboostclassifier-model
+    image: tensorflow/tensorflow:2.6.0
+    command:
+    - pip install -r requirements.txt
+    - python ./adaboostclassifier.py {parameters}
+    inputs:
+    - name: dataset
+      optional: true
+- step:
+    name: trainrandomforest-model
+    image: tensorflow/tensorflow:2.6.0
+    command:
+    - pip install -r requirements.txt
+    - python ./randomforest.py {parameters}
+    inputs:
+    - name: dataset
+      optional: true
+- pipeline:
+    name: preprocess-and-train
+    edges:
+    - configuration: {}
+      source: preprocess.output.preprocessed_data.csv
+      target: adaboost.input.dataset
+    nodes:
+    - name: preprocess
+      override: {}
+      step: preprocess-data
+      type: execution
+    - name: adaboost
+      override: {}
+      step: trainadaboostclassifier-model
+      type: execution
+- pipeline:
+    name: preprocess-and-train-and-test
+    edges:
+    - configuration: {}
+      source: preprocess.output.preprocessed_data.csv
+      target: trainadaboost.input.dataset
+    - configuration: {}
+      source: preprocess.output.preprocessed_data.csv
+      target: trainrandomforest.input.dataset
+    - configuration: {}
+      source: trainadaboost.output.modeladaboost.h5
+      target: evaluate1.input.model
+    - configuration: {}
+      source: trainrandomforest.output.modelrandomforest.h5
+      target: evaluate2.input.model
+    nodes:
+    - name: preprocess
+      override: {}
+      step: preprocess-data
+      type: execution
+    - name: trainadaboost
+      override: {}
+      step: trainadaboostclassifier-model
+      type: execution
+    - name: trainrandomforest
+      override: {}
+      step: trainrandomforest-model
+      type: execution
+    - name: evaluate1
+      override: {}
+      step: test-model
+      type: execution
+    - name: evaluate2
+      override: {}
+      step: test-model
+      type: execution
+- pipeline:
+    name: preprocess-and-train2
+    edges:
+    - configuration: {}
+      source: preprocess.output.preprocessed_data.csv
+      target: trainadaboost.input.dataset
+    - configuration: {}
+      source: preprocess.output.preprocessed_data.csv
+      target: trainrandomforest.input.dataset
+    nodes:
+    - name: preprocess
+      override: {}
+      step: preprocess-data
+      type: execution
+    - name: trainadaboost
+      override: {}
+      step: trainadaboostclassifier-model
+      type: execution
+    - name: trainrandomforest
+      override: {}
+      step: trainrandomforest-model
+      type: execution
+- pipeline:
+    name: preprocess-and-train3
+    edges:
+    - configuration: {}
+      source: preprocess.output.preprocessed_data.csv
+      target: trainadaboost.input.dataset
+    nodes:
+    - name: preprocess
+      override: {}
+      step: preprocess-data
+      type: execution
+    - name: trainadaboost
+      override: {}
+      step: trainadaboostclassifier-model
+      type: execution
+- pipeline:
+    name: Preprocess-with-deployment
+    nodes:
+    - name: preprocess
+      type: execution
+      step: preprocess-data
+    - name: trainadaboost
+      type: execution
+      step: trainadaboostclassifier-models
+    - name: deploy
+      type: deployment
+      deployment: deployment-test
+      endpoints:
+          - predict-digit
+      edges:
+      - configuration: {}
+        source: preprocess.output.preprocessed_data.csv
+        target: trainadaboost.input.dataset
+ #    - [preprocess.output.preprocessed_data.csv, trainadaboost.input.dataset]
+  #  - [trainadaboost.output.model*, deploy.file.predict-digit.model]
+        source: trainadaboost.output.model*
+        target: deploy.file.predict-digit.model
+
